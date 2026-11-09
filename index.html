@@ -91,7 +91,6 @@
       max-width: 100%;
       max-height: 100%;
       object-fit: contain;
-      transition: opacity 0.3s ease;
     }
 
     .spirit-overlay {
@@ -143,18 +142,15 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      transition: transform 0.1s, background-color 0.2s;
     }
 
     .btn-nav:hover:not(:disabled) {
       background: var(--primary-hover);
-      transform: translateY(-2px);
     }
 
     .btn-nav:disabled {
       background: #ccc;
       cursor: not-allowed;
-      transform: none;
     }
 
     .btn-speech {
@@ -169,7 +165,6 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      transition: background-color 0.2s;
     }
 
     .btn-speech:hover {
@@ -194,34 +189,33 @@
     </div>
 
     <div class="image-container">
-      <img id="pageImg" class="page-img" src="assets/graphics/0" alt="繪本圖片" onerror="handleImageError(this)">
+      <img id="pageImg" class="page-img" src="" alt="繪本圖片">
       <img class="spirit-overlay" src="assets/graphics/spirit.png" alt="spirit" onerror="this.style.display='none'">
     </div>
 
     <div class="story-section">
-      <p class="story-text" id="storyText">正在載入繪本故事...</p>
+      <p class="story-text" id="storyText">正在載入故事內容...</p>
     </div>
 
     <div class="controls-bar">
       <button class="btn-nav" id="prevBtn" onclick="changePage(-1)" disabled>
-        <img id="iconLeft" class="btn-icon" src="assets/graphics/left" alt="←" onerror="this.style.display='none'">
+        <img class="btn-icon" src="assets/graphics/left" alt="←" onerror="tryLoadIcon(this, 'left')">
         上一頁
       </button>
       
       <button class="btn-speech" id="speechBtn" onclick="playSpeech()">
-        <img id="iconRead" class="btn-icon" src="assets/graphics/read" alt="▶" onerror="this.style.display='none'">
+        <img class="btn-icon" src="assets/graphics/read" alt="▶" onerror="tryLoadIcon(this, 'read')">
         語音朗讀
       </button>
 
       <button class="btn-nav" id="nextBtn" onclick="changePage(1)">
         下一頁
-        <img id="iconRight" class="btn-icon" src="assets/graphics/right" alt="→" onerror="this.style.display='none'">
+        <img class="btn-icon" src="assets/graphics/right" alt="→" onerror="tryLoadIcon(this, 'right')">
       </button>
     </div>
   </div>
 
-  <!-- 音訊播放元件 -->
-  <audio id="bgmAudio" loop src="assets/music/伴奏.mp3"></audio>
+  <audio id="bgmAudio" loop></audio>
   <audio id="speechAudio"></audio>
 
   <script>
@@ -229,60 +223,81 @@
     let currentPage = 0;
     let isBGMPlaying = false;
 
-    // 故事文字清單（你可以直接在下方引號中替換每一頁的故事內容）
-    const storyTexts = [
-      "歡迎來到電子書繪本故事！",
-      "第一頁：故事準備開始囉。",
-      "第二頁：在廣闊的土地上探險。",
-      "第三頁：遇到了神奇的事情。",
-      "第四頁：繼續勇往直前。",
-      "第五頁：美麗的景色出現在眼前。",
-      "第六頁：發現了意想不到的秘密。",
-      "第七頁：大家決定一起合作。",
-      "第八頁：克服前面的困難。",
-      "第九頁：天空中出現了彩虹。",
-      "第十頁：轉眼間到了中午時分。",
-      "第十一頁：休息一下再出發。",
-      "第十二頁：收穫了美好的友情。",
-      "第十三頁：太陽漸漸落下了山頭。",
-      "第十四頁：點亮了明亮的燈火。",
-      "第十五頁：一起圍繞在火堆旁。",
-      "第十六頁：分享著彼此的心情。",
-      "第十七頁：獲得了珍貴的寶藏。",
-      "第十八頁：準備踏上歸途。",
-      "第十九頁：精彩的故事圓滿結束！"
-    ];
+    // 嘗試多種副檔名播放聲音的通用函式
+    function tryPlayAudio(audioElem, basePath, callbackSuccess, callbackFail) {
+      const extensions = ['.mp3', '', '.wav', '.m4a'];
+      let extIndex = 0;
+
+      function attemptNext() {
+        if (extIndex >= extensions.length) {
+          if (callbackFail) callbackFail();
+          return;
+        }
+        const src = basePath + extensions[extIndex];
+        extIndex++;
+        audioElem.src = src;
+        audioElem.play().then(() => {
+          if (callbackSuccess) callbackSuccess();
+        }).catch(() => {
+          attemptNext();
+        });
+      }
+
+      attemptNext();
+    }
+
+    // 嘗試多種副檔名載入圖片
+    function loadImage(imgElem, basePath) {
+      const extensions = ['', '.jpg', '.png', '.jpeg', '.gif'];
+      let extIndex = 0;
+
+      function attemptNext() {
+        if (extIndex >= extensions.length) {
+          imgElem.alt = "圖片載入失敗，請確認檔名";
+          return;
+        }
+        const src = basePath + extensions[extIndex];
+        extIndex++;
+        
+        const tempImg = new Image();
+        tempImg.onload = () => { imgElem.src = src; };
+        tempImg.onerror = () => { attemptNext(); };
+        tempImg.src = src;
+      }
+
+      attemptNext();
+    }
+
+    function tryLoadIcon(imgElem, iconName) {
+      loadImage(imgElem, `assets/graphics/${iconName}`);
+    }
 
     function updatePage() {
-      // 1. 更新頁碼指示
+      // 1. 更新頁碼
       document.getElementById('pageIndicator').innerText = `頁數 ${currentPage + 1} / ${totalPages}`;
       
-      // 2. 更新圖片路徑 (自動嘗試無副檔名或常見副檔名)
+      // 2. 載入當頁圖片 (會自動試 0, 0.jpg, 0.png)
       const imgElem = document.getElementById('pageImg');
-      imgElem.src = `assets/graphics/${currentPage}`;
+      loadImage(imgElem, `assets/graphics/${currentPage}`);
 
-      // 3. 更新文字內容
-      document.getElementById('storyText').innerText = storyTexts[currentPage] || `第 ${currentPage + 1} 頁`;
+      // 3. 更新頁面文字
+      document.getElementById('storyText').innerText = `第 ${currentPage + 1} 頁的故事內容`;
 
-      // 4. 更新按鈕啟用狀態
+      // 4. 按鈕狀態
       document.getElementById('prevBtn').disabled = (currentPage === 0);
       document.getElementById('nextBtn').disabled = (currentPage === totalPages - 1);
 
-      // 5. 停止前一頁的語音
+      // 5. 切換頁面時停止舊語音
       const speechAudio = document.getElementById('speechAudio');
       speechAudio.pause();
       speechAudio.currentTime = 0;
-      if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
 
-      // 6. 動態切換背景音樂 (切換對應頁數的背景音樂，若找不到則維持預設伴奏)
-      const bgmAudio = document.getElementById('bgmAudio');
+      // 6. 如果背景音樂開著，自動切換音樂
       if (isBGMPlaying) {
-        bgmAudio.src = `assets/music/music${currentPage}`;
-        bgmAudio.play().catch(() => {
-          bgmAudio.src = `assets/music/伴奏.mp3`;
-          bgmAudio.play().catch(() => {});
+        const bgmAudio = document.getElementById('bgmAudio');
+        tryPlayAudio(bgmAudio, `assets/music/music${currentPage}`, null, () => {
+          tryPlayAudio(bgmAudio, `assets/music/伴奏`);
         });
       }
     }
@@ -297,34 +312,35 @@
     function toggleBGM() {
       const bgmAudio = document.getElementById('bgmAudio');
       const bgmBtn = document.getElementById('bgmBtn');
+
       if (isBGMPlaying) {
         bgmAudio.pause();
         isBGMPlaying = false;
         bgmBtn.innerText = "🎵 背景音樂: 關閉";
       } else {
-        bgmAudio.src = `assets/music/music${currentPage}`;
-        bgmAudio.play().then(() => {
+        // 先試 music0 (.mp3)，失敗就試 伴奏 (.mp3)
+        tryPlayAudio(bgmAudio, `assets/music/music${currentPage}`, () => {
           isBGMPlaying = true;
           bgmBtn.innerText = "🎵 背景音樂: 播放中";
-        }).catch(() => {
-          bgmAudio.src = `assets/music/伴奏.mp3`;
-          bgmAudio.play().then(() => {
+        }, () => {
+          tryPlayAudio(bgmAudio, `assets/music/伴奏`, () => {
             isBGMPlaying = true;
             bgmBtn.innerText = "🎵 背景音樂: 播放中";
-          }).catch(err => alert("音樂載入失敗，請確認 music/ 資料夾路徑！"));
+          }, () => {
+            alert("找不到背景音樂檔案，請確認 assets/music/ 資料夾！");
+          });
         });
       }
     }
 
     function playSpeech() {
       const speechAudio = document.getElementById('speechAudio');
-      speechAudio.src = `assets/speech/speech${currentPage}`;
-      
-      speechAudio.play().catch(() => {
-        // 備用機制：若音檔不存在或讀取失敗，使用瀏覽器語音合成功能語音朗讀
+      // 自動嘗試 speech0.mp3, speech0 等
+      tryPlayAudio(speechAudio, `assets/speech/speech${currentPage}`, null, () => {
+        // 如果檔名找不到，改用系統語音朗讀
         if ('speechSynthesis' in window) {
           window.speechSynthesis.cancel();
-          const utterance = new SpeechSynthesisUtterance(storyTexts[currentPage] || '');
+          const utterance = new SpeechSynthesisUtterance(document.getElementById('storyText').innerText);
           utterance.lang = 'zh-TW';
           window.speechSynthesis.speak(utterance);
         } else {
@@ -333,18 +349,6 @@
       });
     }
 
-    function handleImageError(img) {
-      // 圖片載入失敗時自動嘗試加上 .jpg 或 .png 副檔名
-      if (!img.dataset.tried) {
-        img.dataset.tried = "jpg";
-        img.src = `assets/graphics/${currentPage}.jpg`;
-      } else if (img.dataset.tried === "jpg") {
-        img.dataset.tried = "png";
-        img.src = `assets/graphics/${currentPage}.png`;
-      }
-    }
-
-    // 初始化頁面
     window.onload = function() {
       updatePage();
     };
