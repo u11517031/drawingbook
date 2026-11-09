@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>互動電子書繪本</title>
+  <style>
+    :root {
+      --bg-color: #f7f4ed;
+      --card-bg: #ffffff;
+      --primary-color: #6c5ce7;
+      --primary-hover: #5a4bcf;
+      --text-color: #2d3436;
+      --accent-color: #ff7675;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: "PingFang TC", "Microsoft JhengHei", "Heiti TC", sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .book-container {
+      width: 100%;
+      max-width: 850px;
+      background: var(--card-bg);
+      border-radius: 20px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 25px;
+      background-color: rgba(255, 255, 255, 0.9);
+      border-bottom: 1px solid #eee;
+    }
+
+    .page-indicator {
+      font-weight: bold;
+      font-size: 1.1rem;
+      color: var(--primary-color);
+    }
+
+    .audio-controls button {
+      background: none;
+      border: 2px solid var(--primary-color);
+      color: var(--primary-color);
+      padding: 6px 14px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: all 0.2s ease;
+      font-size: 0.9rem;
+    }
+
+    .audio-controls button:hover {
+      background: var(--primary-color);
+      color: #fff;
+    }
+
+    .image-container {
+      position: relative;
+      width: 100%;
+      height: 480px;
+      background-color: #f0f0f0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    .page-img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      transition: opacity 0.3s ease;
+    }
+
+    .spirit-overlay {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      width: 60px;
+      height: auto;
+      pointer-events: none;
+      filter: drop-shadow(0 2px 5px rgba(0,0,0,0.2));
+      opacity: 0.85;
+    }
+
+    .story-section {
+      padding: 25px 30px;
+      min-height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      background: #fafafa;
+      border-top: 1px solid #f0f0f0;
+    }
+
+    .story-text {
+      font-size: 1.25rem;
+      line-height: 1.7;
+      color: #333;
+    }
+
+    .controls-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 30px;
+      background: #fff;
+      border-top: 1px solid #eee;
+    }
+
+    .btn-nav {
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      padding: 10px 22px;
+      border-radius: 25px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: transform 0.1s, background-color 0.2s;
+    }
+
+    .btn-nav:hover:not(:disabled) {
+      background: var(--primary-hover);
+      transform: translateY(-2px);
+    }
+
+    .btn-nav:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-speech {
+      background: var(--accent-color);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 25px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background-color 0.2s;
+    }
+
+    .btn-speech:hover {
+      background: #ee5253;
+    }
+
+    .btn-icon {
+      width: 20px;
+      height: 20px;
+      object-fit: contain;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="book-container">
+    <div class="header-bar">
+      <span class="page-indicator" id="pageIndicator">頁數 1 / 20</span>
+      <div class="audio-controls">
+        <button id="bgmBtn" onclick="toggleBGM()">🎵 背景音樂: 關閉</button>
+      </div>
+    </div>
+
+    <div class="image-container">
+      <img id="pageImg" class="page-img" src="assets/graphics/0" alt="繪本圖片" onerror="handleImageError(this)">
+      <img class="spirit-overlay" src="assets/graphics/spirit.png" alt="spirit" onerror="this.style.display='none'">
+    </div>
+
+    <div class="story-section">
+      <p class="story-text" id="storyText">正在載入繪本故事...</p>
+    </div>
+
+    <div class="controls-bar">
+      <button class="btn-nav" id="prevBtn" onclick="changePage(-1)" disabled>
+        <img id="iconLeft" class="btn-icon" src="assets/graphics/left" alt="←" onerror="this.style.display='none'">
+        上一頁
+      </button>
+      
+      <button class="btn-speech" id="speechBtn" onclick="playSpeech()">
+        <img id="iconRead" class="btn-icon" src="assets/graphics/read" alt="▶" onerror="this.style.display='none'">
+        語音朗讀
+      </button>
+
+      <button class="btn-nav" id="nextBtn" onclick="changePage(1)">
+        下一頁
+        <img id="iconRight" class="btn-icon" src="assets/graphics/right" alt="→" onerror="this.style.display='none'">
+      </button>
+    </div>
+  </div>
+
+  <!-- 音訊播放元件 -->
+  <audio id="bgmAudio" loop src="assets/music/伴奏.mp3"></audio>
+  <audio id="speechAudio"></audio>
+
+  <script>
+    const totalPages = 20;
+    let currentPage = 0;
+    let isBGMPlaying = false;
+
+    // 故事文字清單（你可以直接在下方引號中替換每一頁的故事內容）
+    const storyTexts = [
+      "歡迎來到電子書繪本故事！",
+      "第一頁：故事準備開始囉。",
+      "第二頁：在廣闊的土地上探險。",
+      "第三頁：遇到了神奇的事情。",
+      "第四頁：繼續勇往直前。",
+      "第五頁：美麗的景色出現在眼前。",
+      "第六頁：發現了意想不到的秘密。",
+      "第七頁：大家決定一起合作。",
+      "第八頁：克服前面的困難。",
+      "第九頁：天空中出現了彩虹。",
+      "第十頁：轉眼間到了中午時分。",
+      "第十一頁：休息一下再出發。",
+      "第十二頁：收穫了美好的友情。",
+      "第十三頁：太陽漸漸落下了山頭。",
+      "第十四頁：點亮了明亮的燈火。",
+      "第十五頁：一起圍繞在火堆旁。",
+      "第十六頁：分享著彼此的心情。",
+      "第十七頁：獲得了珍貴的寶藏。",
+      "第十八頁：準備踏上歸途。",
+      "第十九頁：精彩的故事圓滿結束！"
+    ];
+
+    function updatePage() {
+      // 1. 更新頁碼指示
+      document.getElementById('pageIndicator').innerText = `頁數 ${currentPage + 1} / ${totalPages}`;
+      
+      // 2. 更新圖片路徑 (自動嘗試無副檔名或常見副檔名)
+      const imgElem = document.getElementById('pageImg');
+      imgElem.src = `assets/graphics/${currentPage}`;
+
+      // 3. 更新文字內容
+      document.getElementById('storyText').innerText = storyTexts[currentPage] || `第 ${currentPage + 1} 頁`;
+
+      // 4. 更新按鈕啟用狀態
+      document.getElementById('prevBtn').disabled = (currentPage === 0);
+      document.getElementById('nextBtn').disabled = (currentPage === totalPages - 1);
+
+      // 5. 停止前一頁的語音
+      const speechAudio = document.getElementById('speechAudio');
+      speechAudio.pause();
+      speechAudio.currentTime = 0;
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+
+      // 6. 動態切換背景音樂 (切換對應頁數的背景音樂，若找不到則維持預設伴奏)
+      const bgmAudio = document.getElementById('bgmAudio');
+      if (isBGMPlaying) {
+        bgmAudio.src = `assets/music/music${currentPage}`;
+        bgmAudio.play().catch(() => {
+          bgmAudio.src = `assets/music/伴奏.mp3`;
+          bgmAudio.play().catch(() => {});
+        });
+      }
+    }
+
+    function changePage(direction) {
+      currentPage += direction;
+      if (currentPage < 0) currentPage = 0;
+      if (currentPage >= totalPages) currentPage = totalPages - 1;
+      updatePage();
+    }
+
+    function toggleBGM() {
+      const bgmAudio = document.getElementById('bgmAudio');
+      const bgmBtn = document.getElementById('bgmBtn');
+      if (isBGMPlaying) {
+        bgmAudio.pause();
+        isBGMPlaying = false;
+        bgmBtn.innerText = "🎵 背景音樂: 關閉";
+      } else {
+        bgmAudio.src = `assets/music/music${currentPage}`;
+        bgmAudio.play().then(() => {
+          isBGMPlaying = true;
+          bgmBtn.innerText = "🎵 背景音樂: 播放中";
+        }).catch(() => {
+          bgmAudio.src = `assets/music/伴奏.mp3`;
+          bgmAudio.play().then(() => {
+            isBGMPlaying = true;
+            bgmBtn.innerText = "🎵 背景音樂: 播放中";
+          }).catch(err => alert("音樂載入失敗，請確認 music/ 資料夾路徑！"));
+        });
+      }
+    }
+
+    function playSpeech() {
+      const speechAudio = document.getElementById('speechAudio');
+      speechAudio.src = `assets/speech/speech${currentPage}`;
+      
+      speechAudio.play().catch(() => {
+        // 備用機制：若音檔不存在或讀取失敗，使用瀏覽器語音合成功能語音朗讀
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(storyTexts[currentPage] || '');
+          utterance.lang = 'zh-TW';
+          window.speechSynthesis.speak(utterance);
+        } else {
+          alert("無法播放語音檔。");
+        }
+      });
+    }
+
+    function handleImageError(img) {
+      // 圖片載入失敗時自動嘗試加上 .jpg 或 .png 副檔名
+      if (!img.dataset.tried) {
+        img.dataset.tried = "jpg";
+        img.src = `assets/graphics/${currentPage}.jpg`;
+      } else if (img.dataset.tried === "jpg") {
+        img.dataset.tried = "png";
+        img.src = `assets/graphics/${currentPage}.png`;
+      }
+    }
+
+    // 初始化頁面
+    window.onload = function() {
+      updatePage();
+    };
+  </script>
+</body>
+</html>
