@@ -51,12 +51,20 @@
       padding: 15px 25px;
       background-color: rgba(255, 255, 255, 0.9);
       border-bottom: 1px solid #eee;
+      flex-wrap: wrap;
+      gap: 10px;
     }
 
     .page-indicator {
       font-weight: bold;
       font-size: 1.1rem;
       color: var(--primary-color);
+    }
+
+    .audio-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
 
     .audio-controls button {
@@ -74,6 +82,21 @@
     .audio-controls button:hover {
       background: var(--primary-color);
       color: #fff;
+    }
+
+    .volume-box {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.9rem;
+      font-weight: bold;
+      color: var(--primary-color);
+    }
+
+    .volume-box input[type="range"] {
+      width: 80px;
+      cursor: pointer;
+      accent-color: var(--primary-color);
     }
 
     .image-container {
@@ -184,7 +207,10 @@
     <div class="header-bar">
       <span class="page-indicator" id="pageIndicator">頁數 1 / 20</span>
       <div class="audio-controls">
-        <button id="bgmBtn" onclick="toggleBGM()">🎵 背景音樂: 關閉</button>
+        <button id="bgmBtn" onclick="toggleBGM()">🎵 背景音樂: 播放</button>
+        <div class="volume-box">
+          🔊 <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="0.5" oninput="changeVolume(this.value)">
+        </div>
       </div>
     </div>
 
@@ -222,8 +248,9 @@
     const totalPages = 20;
     let currentPage = 0;
     let isBGMPlaying = false;
+    let currentBGMTrack = null;
 
-    // 嘗試多種副檔名播放聲音的通用函式
+    // 嘗試多種副檔名播放聲音
     function tryPlayAudio(audioElem, basePath, callbackSuccess, callbackFail) {
       const extensions = ['.mp3', '', '.wav', '.m4a'];
       let extIndex = 0;
@@ -276,7 +303,7 @@
       // 1. 更新頁碼
       document.getElementById('pageIndicator').innerText = `頁數 ${currentPage + 1} / ${totalPages}`;
       
-      // 2. 載入當頁圖片 (會自動試 0, 0.jpg, 0.png)
+      // 2. 載入當頁圖片
       const imgElem = document.getElementById('pageImg');
       loadImage(imgElem, `assets/graphics/${currentPage}`);
 
@@ -293,12 +320,9 @@
       speechAudio.currentTime = 0;
       if (window.speechSynthesis) window.speechSynthesis.cancel();
 
-      // 6. 如果背景音樂開著，自動切換音樂
+      // 6. 如果背景音樂正處於播放狀態，切換至對應頁數音樂
       if (isBGMPlaying) {
-        const bgmAudio = document.getElementById('bgmAudio');
-        tryPlayAudio(bgmAudio, `assets/music/music${currentPage}`, null, () => {
-          tryPlayAudio(bgmAudio, `assets/music/伴奏`);
-        });
+        loadAndPlayBGM();
       }
     }
 
@@ -309,35 +333,55 @@
       updatePage();
     }
 
+    function loadAndPlayBGM() {
+      const bgmAudio = document.getElementById('bgmAudio');
+      bgmAudio.volume = document.getElementById('volumeSlider').value;
+
+      tryPlayAudio(bgmAudio, `assets/music/music${currentPage}`, () => {
+        isBGMPlaying = true;
+        currentBGMTrack = currentPage;
+        document.getElementById('bgmBtn').innerText = "⏸ 背景音樂: 暫停";
+      }, () => {
+        tryPlayAudio(bgmAudio, `assets/music/伴奏`, () => {
+          isBGMPlaying = true;
+          document.getElementById('bgmBtn').innerText = "⏸ 背景音樂: 暫停";
+        }, () => {
+          alert("找不到背景音樂檔案，請確認 assets/music/ 資料夾！");
+        });
+      });
+    }
+
     function toggleBGM() {
       const bgmAudio = document.getElementById('bgmAudio');
       const bgmBtn = document.getElementById('bgmBtn');
 
       if (isBGMPlaying) {
+        // 暫停播放
         bgmAudio.pause();
         isBGMPlaying = false;
-        bgmBtn.innerText = "🎵 背景音樂: 關閉";
+        bgmBtn.innerText = "▶ 背景音樂: 繼續播放";
       } else {
-        // 先試 music0 (.mp3)，失敗就試 伴奏 (.mp3)
-        tryPlayAudio(bgmAudio, `assets/music/music${currentPage}`, () => {
-          isBGMPlaying = true;
-          bgmBtn.innerText = "🎵 背景音樂: 播放中";
-        }, () => {
-          tryPlayAudio(bgmAudio, `assets/music/伴奏`, () => {
+        // 如果音訊已有來源且只是暫停，直接 resume 繼續播放
+        if (bgmAudio.src && currentBGMTrack === currentPage) {
+          bgmAudio.play().then(() => {
             isBGMPlaying = true;
-            bgmBtn.innerText = "🎵 背景音樂: 播放中";
-          }, () => {
-            alert("找不到背景音樂檔案，請確認 assets/music/ 資料夾！");
-          });
-        });
+            bgmBtn.innerText = "⏸ 背景音樂: 暫停";
+          }).catch(() => loadAndPlayBGM());
+        } else {
+          // 重新載入對應頁面的背景音樂
+          loadAndPlayBGM();
+        }
       }
+    }
+
+    function changeVolume(val) {
+      const bgmAudio = document.getElementById('bgmAudio');
+      bgmAudio.volume = val;
     }
 
     function playSpeech() {
       const speechAudio = document.getElementById('speechAudio');
-      // 自動嘗試 speech0.mp3, speech0 等
       tryPlayAudio(speechAudio, `assets/speech/speech${currentPage}`, null, () => {
-        // 如果檔名找不到，改用系統語音朗讀
         if ('speechSynthesis' in window) {
           window.speechSynthesis.cancel();
           const utterance = new SpeechSynthesisUtterance(document.getElementById('storyText').innerText);
@@ -351,6 +395,8 @@
 
     window.onload = function() {
       updatePage();
+      // 初始化設定音量
+      document.getElementById('bgmAudio').volume = document.getElementById('volumeSlider').value;
     };
   </script>
 </body>
